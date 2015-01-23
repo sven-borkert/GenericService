@@ -1,7 +1,7 @@
 package net.borkert.util;
 
 import net.borkert.persistence.GenericDAO;
-import net.borkert.utils.ClassUtils;
+import net.borkert.util.ClassUtils;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
