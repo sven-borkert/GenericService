@@ -1,7 +1,6 @@
 package net.borkert.util;
 
-import net.borkert.persistence.GenericDAO;
-import net.borkert.util.ClassUtils;
+import net.borkert.persistence.ExtendedSessionFactory;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,7 +25,7 @@ public class GenericServiceImpl<DOMAIN, DTO, ID extends Serializable>
   @Resource
   private TransactionTemplate transactionTemplate;
 
-  private GenericDAO<DOMAIN, ID> dao;
+  private ExtendedSessionFactory esf;
 
   public GenericServiceImpl() {
     this.domainClass = (Class<DOMAIN>) ((ParameterizedType) getClass().getGenericSuperclass()).getActualTypeArguments()[0];
@@ -36,13 +35,13 @@ public class GenericServiceImpl<DOMAIN, DTO, ID extends Serializable>
   @Override
   @Transactional(propagation = Propagation.REQUIRED, readOnly = true)
   public List<DTO> getAll() {
-    return toDTO(getDao().findAll());
+    return toDTO(getEsf().findAll(domainClass));
   }
 
   @Override
   @Transactional(propagation = Propagation.REQUIRED, readOnly = true)
   public DTO getById(ID id) {
-    return toDTO(getDao().findById(id, false));
+    return toDTO(getEsf().findById(domainClass, id));
   }
 
   @SuppressWarnings({"unchecked"})
@@ -50,7 +49,7 @@ public class GenericServiceImpl<DOMAIN, DTO, ID extends Serializable>
   public DTO addOrUpdate(DTO dto) {
     log.debug("addOrUpdate(dto): " + dto.toString());
     final DTO finalEntity = dto;
-    Object result = getTransactionTemplate().execute(transactionStatus -> toDTO(getDao().makePersistent(toDomain(finalEntity))));
+    Object result = getTransactionTemplate().execute(transactionStatus -> toDTO(getEsf().makePersistent(toDomain(finalEntity))));
     handleUpdate();
     return (DTO) result;
   }
@@ -62,9 +61,9 @@ public class GenericServiceImpl<DOMAIN, DTO, ID extends Serializable>
     final Set removeSet = remove;
     Object result = getTransactionTemplate().execute(transactionStatus -> {
       for (Object o : removeSet) {
-        getDao().makeTransient(toDomainViaMapping(o));
+        getEsf().makeTransient(toDomainViaMapping(o));
       }
-      return toDTO(getDao().makePersistent(toDomain(dto)));
+      return toDTO(getEsf().makePersistent(toDomain(dto)));
     });
     handleUpdate();
     return (DTO) result;
@@ -75,7 +74,7 @@ public class GenericServiceImpl<DOMAIN, DTO, ID extends Serializable>
     final ID deleteId = id;
     log.debug("delete(): " + domainClass + " : " + id);
     getTransactionTemplate().execute(transactionStatus -> {
-      getDao().makeTransient(getDao().findById(deleteId, false));
+      getEsf().makeTransient(getEsf().findById(domainClass, deleteId));
       return null;
     });
     handleUpdate();
@@ -86,9 +85,9 @@ public class GenericServiceImpl<DOMAIN, DTO, ID extends Serializable>
     final ID deleteId = id;
     log.debug("deleteIfExists(): " + domainClass + " : " + id);
     getTransactionTemplate().execute(transactionStatus -> {
-      DOMAIN o = getDao().findById(deleteId, false);
+      DOMAIN o = getEsf().findById(domainClass, deleteId);
       if (o != null) {
-        getDao().makeTransient(o);
+        getEsf().makeTransient(o);
       }
       return null;
     });
@@ -101,7 +100,7 @@ public class GenericServiceImpl<DOMAIN, DTO, ID extends Serializable>
     getTransactionTemplate().execute(transactionStatus -> {
       for (ID i : deleteId) {
         log.debug("delete(): " + domainClass + " : " + i);
-        getDao().makeTransient(getDao().findById(i, false));
+        getEsf().makeTransient(getEsf().findById(domainClass, i));
       }
       return null;
     });
@@ -111,43 +110,43 @@ public class GenericServiceImpl<DOMAIN, DTO, ID extends Serializable>
   @Override
   @Transactional(propagation = Propagation.REQUIRED, readOnly = true)
   public List<DTO> findByProperty(String property, Object value) {
-    return toDTO(getDao().findByProperty(property, value));
+    return toDTO(getEsf().findByProperty(domainClass, property, value));
   }
 
   @Override
   @Transactional(propagation = Propagation.REQUIRED, readOnly = true)
   public DTO findOneByProperty(String property, Object value) {
-    return toDTO(getDao().findOneByProperty(property, value));
+    return toDTO(getEsf().findOneByProperty(domainClass, property, value));
   }
 
   @Override
   @Transactional(propagation = Propagation.REQUIRED, readOnly = true)
   public List<DTO> findByProperty(String property, Object value, int limit) {
-    return toDTO(getDao().findByProperty(property, value, limit));
+    return toDTO(getEsf().findByProperty(domainClass, property, value, limit));
   }
 
   @Override
   @Transactional(propagation = Propagation.REQUIRED, readOnly = true)
   public List<DTO> findByProperty(String property, Object value, int limit, int offset) {
-    return toDTO(getDao().findByProperty(property, value, limit));
+    return toDTO(getEsf().findByProperty(domainClass, property, value, limit));
   }
 
   @Override
   @Transactional(propagation = Propagation.REQUIRED, readOnly = true)
   public List<DTO> load(int first, int pageSize, String sortField, boolean sortOrder, Map<String, Object> filters) {
-    return toDTO(getDao().load(first, pageSize, sortField, sortOrder, filters));
+    return toDTO(getEsf().load(domainClass, first, pageSize, sortField, sortOrder, filters));
   }
 
   @Override
   @Transactional(propagation = Propagation.REQUIRED, readOnly = true)
   public List<DTO> load(int first, int pageSize, String sortField, boolean sortOrder, Map<String, Object> filters, String dateProperty, Date from, Date to) {
-    return toDTO(getDao().load(first, pageSize, sortField, sortOrder, filters, dateProperty, from, to));
+    return toDTO(getEsf().load(domainClass, first, pageSize, sortField, sortOrder, filters, dateProperty, from, to));
   }
 
   @Override
   @Transactional(propagation = Propagation.REQUIRED, readOnly = true)
   public int loadMaxCount(Map<String, Object> filters) {
-    return getDao().loadMaxCount(filters);
+    return getEsf().loadMaxCount(domainClass, filters);
   }
 
   @SuppressWarnings({"unchecked"})
@@ -270,12 +269,12 @@ public class GenericServiceImpl<DOMAIN, DTO, ID extends Serializable>
     classMapping.put(dto, domain);
   }
 
-  public GenericDAO<DOMAIN, ID> getDao() {
-    return dao;
+  public ExtendedSessionFactory getEsf() {
+    return esf;
   }
 
-  public void setDao(GenericDAO<DOMAIN, ID> dao) {
-    this.dao = dao;
+  public void setEsf(ExtendedSessionFactory esf) {
+    this.esf = esf;
   }
 
   public TransactionTemplate getTransactionTemplate() {

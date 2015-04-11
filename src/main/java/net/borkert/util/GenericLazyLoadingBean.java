@@ -1,6 +1,5 @@
 package net.borkert.util;
 
-import net.borkert.util.DateTool;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
